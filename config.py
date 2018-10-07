@@ -1,0 +1,9 @@
+#Tweepy Keys
+ACCESS_TOKEN = "777750419401351168-grNbukJXMiWcui1Ksss078o0Fs7shPj"
+ACCESS_TOKEN_SECRET = "Nv9QPt7ia1P0Wd3Cooz3SijqPll2LqfSpTphpAt9HwLoa"
+CONSUMER_KEY = "aT3KC733tf5l0PkZy94j6L3QT"
+CONSUMER_SECRET = "nVRed8r5gwiJ7Wcg0HD9LM2QrgdI6L6gbqWj2GqkFcOZ8t1K08"
+
+#MLab Credentials
+MONGO_URI = 'mongodb://gaurav:pass1234@ds229008.mlab.com:29008/streamdata'
+MONGO_DBNAME = 'streamdata'
