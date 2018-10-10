@@ -12,9 +12,12 @@ import csv
 from utils import *
 from . import app
 
-#API 1 - To stream data based on keyword
+
 @app.route("/stream/<keyword>", methods=['GET','POST'])
 def stream(keyword):
+	"""
+	API 1 - To stream data based on keyword
+	"""
 	try:
 		time = request.args.get('time')
 		count = request.args.get('count')
@@ -46,30 +49,32 @@ def stream(keyword):
 					}
 		return jsonify(response)
 
-
-#API 2 - To filter/search stored tweets 
+ 
 @app.route("/search", methods=['GET','POST'])
 def search():
+	"""
+	API 2 - To filter/search stored tweets
+	"""
 	try:
-		name = request.args.get('name')
-		text = request.args.get('text')
-		rtcount = request.args.get('rtcount')
-		favcount = request.args.get('favcount')
-		datestart = request.args.get('datestart')
-		dateend = request.args.get('dateend')
+		user_name_filter = request.args.get('name')
+		text_filter = request.args.get('text')
+		retweet_count_filter = request.args.get('rtcount')
+		favcount_filter = request.args.get('favcount')
+		date_start = request.args.get('datestart')
+		date_end = request.args.get('dateend')
 		language = request.args.get('lang')	
 		mention = request.args.get('mention')
-		sortPar = request.args.get('sort')
+		sort_param = request.args.get('sort')
 		page = request.args.get('page')
 		hashtag = request.args.get('hashtag')
-		ufollowcount = request.args.get('followers')
-		typeTw = request.args.get('type')
+		user_follow_count = request.args.get('followers')
+		tweet_type = request.args.get('type')
 		location = request.args.get('location')
 		keyword = request.args.get('keyword')
 
-		result = filterData(name, text, rtcount, favcount, 
-			datestart, dateend, language, mention, sortPar, 
-			hashtag, ufollowcount, typeTw, location, keyword)
+		result = filterData(user_name_filter, text_filter, retweet_count_filter, favcount_filter, 
+			date_start, date_end, language, mention, sort_param, 
+			hashtag, user_follow_count, tweet_type, location, keyword)
 
 		limit = 10
 		if page == None or not page.isdigit() or int(page)<1:
@@ -99,28 +104,31 @@ def search():
 					}
 		return jsonify(response)
 
-#API 3 - To download data in CSV format
+
 @app.route("/getcsv", methods=['GET','POST'])
 def getcsv():
+	"""
+	API 3 - To download data in CSV format
+	"""
 	try:
-		name = request.args.get('name')
-		text = request.args.get('text')
-		rtcount = request.args.get('rtcount')
-		favcount = request.args.get('favcount')
-		datestart = request.args.get('datestart')
-		dateend = request.args.get('dateend')
+		user_name_filter = request.args.get('name')
+		text_filter = request.args.get('text')
+		retweet_count_filter = request.args.get('rtcount')
+		favcount_filter = request.args.get('favcount')
+		date_start = request.args.get('datestart')
+		date_end = request.args.get('dateend')
 		language = request.args.get('lang')	
 		mention = request.args.get('mention')
-		sortPar = request.args.get('sort')
+		sort_param = request.args.get('sort')
 		hashtag = request.args.get('hashtag')
-		ufollowcount = request.args.get('followers')
+		user_follow_count = request.args.get('followers')
 		typeTw = request.args.get('type')
 		location = request.args.get('location')
 		keyword = request.args.get('keyword')
 
-		result = filterData(name, text, rtcount, favcount, 
-				 datestart, dateend, language, 
-				 mention, sortPar, hashtag, ufollowcount, 
+		result = filterData(user_name_filter, text_filter, retweet_count_filter, favcount_filter, 
+				 date_start, date_end, language, 
+				 mention, sort_param, hashtag, user_follow_count, 
 				 typeTw, location, keyword)
 
 		csvfile = "id,created_at,language,user_name,user_screen_name,user_followers,user_location,"\

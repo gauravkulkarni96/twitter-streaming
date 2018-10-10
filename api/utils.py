@@ -6,26 +6,27 @@ from tweepy.streaming import StreamListener
 #MongoDB
 from flask_pymongo import PyMongo
 import pymongo
-from IPython import embed
 
 mongo = PyMongo(app)
 
-
-#Custom JSON converter to support Datetime and Object types
+# Custom JSON converter to support Datetime and Object types
 class JSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, ObjectId):
-            return str(o)
-        if isinstance(o, datetime):
-        	return str(o)
-        return json.JSONEncoder.default(self, o)
+	def default(self, o):
+		if isinstance(o, ObjectId):
+			return str(o)
+		if isinstance(o, datetime):
+			return str(o)
+		return json.JSONEncoder.default(self, o)
 
-#Function to store curated data in database
+
 def storeData(data, keyword):
+	"""
+	Function to store curated data in database
+	"""
 	users = mongo.db.users
 	tweets = mongo.db.tweets
-	dtest = tweets.find_one({'id':data['id']})
-	if dtest == None:
+	duplicate_tweet = tweets.find_one({'id':data['id']})
+	if duplicate_tweet == None:
 		user_keys = ['id','screen_name', 'name', 'location', 'followers_count']
 		qtest = users.find_one({'id':data['user']['id']})
 		if qtest == None:
@@ -54,48 +55,51 @@ def storeData(data, keyword):
 		data['user'] = data['user']['id']
 
 		data_keys = ['favorite_count', 'id', 'is_quote_status', 'lang', 'retweet_count','user']
-		savedata = {key: data[key] for key in data_keys}
+		save_data = {key: data[key] for key in data_keys}
 
 		if data['truncated'] and 'extended_tweet' in data and 'full_text' in data['extended_tweet']:
-			savedata['text'] = data['extended_tweet']['full_text']
+			save_data['text'] = data['extended_tweet']['full_text']
 		else:
-			savedata['text'] = data['text']
+			save_data['text'] = data['text']
 
-		savedata['created_at'] = datetime.strptime(data['created_at'], '%a %b %d %H:%M:%S +0000 %Y')
-		savedata['text_lower'] = savedata['text'].lower()
-		savedata['hashtags'] = [x['text'] for x in data['entities']['hashtags']]
-		savedata['hashtags_lower'] = [x['text'].lower() for x in data['entities']['hashtags']]
-		savedata['user_mentions'] = [x['screen_name'] for x in data['entities']['user_mentions']]
-		savedata['user_mentions_lower'] = [x['screen_name'].lower() for x in data['entities']['user_mentions']]
-		savedata['keyword'] = keyword.lower()
+		save_data['created_at'] = datetime.strptime(data['created_at'], '%a %b %d %H:%M:%S +0000 %Y')
+		save_data['text_lower'] = save_data['text'].lower()
+		save_data['hashtags'] = [x['text'] for x in data['entities']['hashtags']]
+		save_data['hashtags_lower'] = [x['text'].lower() for x in data['entities']['hashtags']]
+		save_data['user_mentions'] = [x['screen_name'] for x in data['entities']['user_mentions']]
+		save_data['user_mentions_lower'] = [x['screen_name'].lower() for x in data['entities']['user_mentions']]
+		save_data['keyword'] = keyword.lower()
 
-		savedata['is_retweet'] = False
+		save_data['is_retweet'] = False
 		if 'retweeted_status' in data:
-			savedata['is_retweet'] = True
+			save_data['is_retweet'] = True
 
-		tweets.insert(savedata)
+		tweets.insert(save_data)
 
-# StreamListener class for working on streaming tweets
+
 class StdOutListener(StreamListener):
+	"""
+	StreamListener class for working on streaming tweets
+	"""
 	def __init__(self, time, count, keyword):
-		self.maxtweet = count
+		self.max_tweet = count
 		self.time = time
-		self.tweetcount = 0
-		self.starttime = datetime.now()
+		self.tweet_count = 0
+		self.start_time = datetime.now()
 		self.keyword = keyword
 
 	def on_data(self, data):
-		if self.time and (datetime.now()-self.starttime).seconds >= self.time:
+		if self.time and (datetime.now()-self.start_time).seconds >= self.time:
 			return False
 
 		dtemp = json.loads(data)
 		storeData(dtemp, self.keyword)
 
-		self.tweetcount+=1
-		if self.time and (datetime.now()-self.starttime).seconds >= self.time:
+		self.tweet_count+=1
+		if self.time and (datetime.now()-self.start_time).seconds >= self.time:
 			return False
 
-		if self.maxtweet and self.tweetcount >= self.maxtweet:
+		if self.max_tweet and self.tweet_count >= self.max_tweet:
 			return False
 
 		return True
@@ -103,207 +107,208 @@ class StdOutListener(StreamListener):
 	def on_error(self, status):
 		print status
 
-#Function to filter data based on applied filters
-def filterData(name, text, rtcount, favcount, datestart, dateend, 
-				language, mention, sortPar,hashtag, ufollowcount, 
-				typeTw, location, keyword):
 
+def filterData(name, text, retweet_count, favourite_count, date_start_string, date_end_string, 
+				language, mention, sort_param, hashtag, user_follow_count, 
+				tweet_type, location, keyword):
+	"""
+	Function to filter data based on applied filters
+	"""
 	users = mongo.db.users
 	tweets = mongo.db.tweets
 
-	sort, sortType = "created_at", pymongo.DESCENDING
-	sort2=None
-	sortType2 = None
-	if sortPar != None and '-' in sortPar:
-		sorttemp, sortTypetemp = sortPar.strip().split("-")
-		if sorttemp and sortTypetemp:
-			if sorttemp == "name":
-				sort2 = "user"
-			elif sorttemp == "sname":
-				sort2 = "screen_name"
-			elif sorttemp == "followers":
-				sort2 = "followers_count"
+	primary_sort, primary_sort_type = "created_at", pymongo.DESCENDING
+	secondary_sort=None
+	secondary_sort_type = None
+	if sort_param != None and '-' in sort_param:
+		secondary_sort_temporary, secondary_sort_type_temporary = sort_param.strip().split("-")
+		if secondary_sort_temporary and secondary_sort_type_temporary:
+			if secondary_sort_temporary == "name":
+				secondary_sort = "user"
+			elif secondary_sort_temporary == "sname":
+				secondary_sort = "screen_name"
+			elif secondary_sort_temporary == "followers":
+				secondary_sort = "followers_count"
 
-			elif sorttemp == "text":
-				sort = "text"
-			elif sorttemp == "fav":
-				sort = "favorite_count"
-			elif sorttemp == "ret":
-				sort = "retweet_count"
+			elif secondary_sort_temporary == "text":
+				primary_sort = "text"
+			elif secondary_sort_temporary == "fav":
+				primary_sort = "favorite_count"
+			elif secondary_sort_temporary == "ret":
+				primary_sort = "retweet_count"
 			else:
-				sort = "created_at"
+				primary_sort = "created_at"
 
-			if sortTypetemp == "asc":
-				if sort2:
-					sortType2="asc"
+			if secondary_sort_type_temporary == "asc":
+				if secondary_sort:
+					secondary_sort_type="asc"
 				else:
-					sortType = pymongo.ASCENDING
-			elif sortTypetemp == "dsc":
-				if sort2:
-					sortType2="dsc"
+					primary_sort_type = pymongo.ASCENDING
+			elif secondary_sort_type_temporary == "dsc":
+				if secondary_sort:
+					secondary_sort_type="dsc"
 				else:
-					sortType = pymongo.DESCENDING
+					primary_sort_type = pymongo.DESCENDING
 		else:
-			sort, sortType = "created_at", pymongo.DESCENDING
+			primary_sort, primary_sort_type = "created_at", pymongo.DESCENDING
 
-	filterDictuser = {}
-	filterDict = {}
+	user_filters_dictionary = {}
+	basic_filters_dictionary = {}
 
 	if keyword != None:
-		filterDict["keyword"] = keyword.lower()
+		basic_filters_dictionary["keyword"] = keyword.lower()
 
-	if typeTw != None:
-		if typeTw == "retweet":
-			filterDict["is_retweet"] = True
-		elif typeTw == "quote":
-			filterDict["is_quote_status"] = True
-		elif typeTw == "original":
-			filterDict["is_retweet"] = False
-			filterDict["is_quote_status"] = False
+	if tweet_type != None:
+		if tweet_type == "retweet":
+			basic_filters_dictionary["is_retweet"] = True
+		elif tweet_type == "quote":
+			basic_filters_dictionary["is_quote_status"] = True
+		elif tweet_type == "original":
+			basic_filters_dictionary["is_retweet"] = False
+			basic_filters_dictionary["is_quote_status"] = False
 
 	if hashtag != None:
-		filterDict['hashtags_lower'] = hashtag.lower()
+		basic_filters_dictionary['hashtags_lower'] = hashtag.lower()
 
-	if datestart != None and dateend == None and len(datestart)==10:
-		try:
-			date, month, year = map(int, datestart.strip().split("-"))
-			datest = datetime(year,month, date)
-			print datest
-			filterDict['created_at'] = {'$gte':datest}
-		except:
-			pass
+	if date_start_string != None and date_end_string == None and len(date_start_string)==10:
+		# try:
+			date, month, year = map(int, date_start_string.strip().split("-"))
+			date_start = datetime(year, month, date)
+			basic_filters_dictionary['created_at'] = {'$gte':date_start}
+		# except:
+		# 	pass
 
-	if dateend != None and datestart == None and len(dateend)==10:
-		try:
-			date, month, year = map(int, dateend.strip().split("-"))
-			daten = datetime(year,month, date)
-			filterDict['created_at'] = {'$lte':daten}
-		except:
-			pass
+	if date_end_string != None and date_start_string == None and len(date_end_string)==10:
+		# try:
+			date, month, year = map(int, date_end_string.strip().split("-"))
+			date_end = datetime(year, month, date)
+			basic_filters_dictionary['created_at'] = {'$lte':date_end}
+		# except:
+		# 	pass
 
-	if datestart != None and dateend != None and len(datestart)==10 and len(dateend)==10:
-		try:
-			date, month, year = map(int, datestart.strip().split("-"))
-			datest = datetime(year,month, date)
+	if date_start_string != None and date_end_string != None and len(date_start_string)==10 and len(date_end_string)==10:
+		# try:
+			date, month, year = map(int, date_start_string.strip().split("-"))
+			date_start = datetime(year, month, date)
 
-			date, month, year = map(int, dateend.strip().split("-"))
-			daten = datetime(year,month, date)
-			filterDict['$and'] = [
-									{'created_at':{'$gte':datest}},
-								 	{'created_at':{'$lte':daten}}
+			date, month, year = map(int, date_end_string.strip().split("-"))
+			date_end = datetime(year, month, date)
+			basic_filters_dictionary['$and'] = [
+									{'created_at':{'$gte':date_start}},
+									{'created_at':{'$lte':date_end}}
 								 ]
-		except:
-			pass
+		# except:
+		# 	pass
 
 	if location != None:
-		filterDictuser["location_lower"] = location.lower()
+		user_filters_dictionary["location_lower"] = location.lower()
 
-	if ufollowcount != None:
-		ufollowcountType = ufollowcount[:2].lower()
-		ufollowcount = ufollowcount[2:]
-		if ufollowcount.isdigit():
+	if user_follow_count != None:
+		ufollowcountType = user_follow_count[:2].lower()
+		user_follow_count = user_follow_count[2:]
+		if user_follow_count.isdigit():
 			if ufollowcountType == "gt":
-				filterDictuser["followers_count"] = {'$gt':int(ufollowcount)}
+				user_filters_dictionary["followers_count"] = {'$gt':int(user_follow_count)}
 			elif ufollowcountType == "lt":
-				filterDictuser["followers_count"] = {'$lt':int(ufollowcount)}
+				user_filters_dictionary["followers_count"] = {'$lt':int(user_follow_count)}
 			elif ufollowcountType == "eq":
-				filterDictuser["followers_count"] = {'$eq':int(ufollowcount)}
+				user_filters_dictionary["followers_count"] = {'$eq':int(user_follow_count)}
 			elif ufollowcountType == "le":
-				filterDictuser["followers_count"] = {'$lte':int(ufollowcount)}
+				user_filters_dictionary["followers_count"] = {'$lte':int(user_follow_count)}
 			elif ufollowcountType == "ge":
-				filterDictuser["followers_count"] = {'$gte':int(ufollowcount)}
+				user_filters_dictionary["followers_count"] = {'$gte':int(user_follow_count)}
 	
 	if name != None:
-		nameType = name[:2].lower()
+		name_match_type = name[:2].lower()
 		name = name[3:].lower()
 
-		if nameType == "sw":
-			filterDictuser["$or"] = [
+		if name_match_type == "sw":
+			user_filters_dictionary["$or"] = [
 						{"name_lower" : {'$regex' : "^"+name.lower()}}, 
 						{"screen_name_lower" : {'$regex' : "^"+name.lower()}}
 					]
 
-		elif nameType == "ew":
-			filterDictuser["$or"] = [
+		elif name_match_type == "ew":
+			user_filters_dictionary["$or"] = [
 				{"name_lower" : {'$regex' : name.lower()+"$"}}, 
 				{"screen_name_lower" : {'$regex' : name.lower()+"$"}}
 			]
 
-		elif nameType == "co":
-			filterDictuser["$or"] = [
+		elif name_match_type == "co":
+			user_filters_dictionary["$or"] = [
 				{"name_lower" : {'$regex' : name.lower()}}, 
 				{"screen_name_lower" : {'$regex' : name.lower()}}
 			]
 
-		elif nameType == "em":
-			filterDictuser["$or"] = [
+		elif name_match_type == "em":
+			user_filters_dictionary["$or"] = [
 				{"name_lower" : name.lower()}, 
 				{"screen_name_lower" : name.lower()}
 			]
 		
-	if name != None or ufollowcount != None or location != None:
+	if name != None or user_follow_count != None or location != None:
 		nameids = []
-		for i in users.find(filterDictuser):
+		for i in users.find(user_filters_dictionary):
 			nameids.append(i['id'])
-		filterDict['user'] = {'$in' : nameids}
+		basic_filters_dictionary['user'] = {'$in' : nameids}
 
 	if mention != None:
-		mentionType = mention[:2].lower()
+		mention_match_type = mention[:2].lower()
 		mention = mention[3:].lower()
-		if mentionType == "sw":
-			filterDict["user_mentions_lower"] = {'$regex' : "^"+mention.lower()}
-		elif mentionType == "ew":
-			filterDict["user_mentions_lower"] = {'$regex' : mention.lower()+"$"}
-		elif mentionType == "co":
-			filterDict["user_mentions_lower"] = {'$regex' : mention.lower()}
-		elif mentionType == "em":
-			filterDict["user_mentions_lower"] = mention.lower()
+		if mention_match_type == "sw":
+			basic_filters_dictionary["user_mentions_lower"] = {'$regex' : "^"+mention.lower()}
+		elif mention_match_type == "ew":
+			basic_filters_dictionary["user_mentions_lower"] = {'$regex' : mention.lower()+"$"}
+		elif mention_match_type == "co":
+			basic_filters_dictionary["user_mentions_lower"] = {'$regex' : mention.lower()}
+		elif mention_match_type == "em":
+			basic_filters_dictionary["user_mentions_lower"] = mention.lower()
 
 	if language != None:
-		filterDict["lang"] = language
+		basic_filters_dictionary["lang"] = language
 
 	if text != None:
-		textType = text[:2].lower()
+		text_match_type = text[:2].lower()
 		text = text[3:].lower()
-		if textType == "sw":
-			filterDict["text_lower"] = {'$regex' : "^"+text.lower()}
-		elif textType == "ew":
-			filterDict["text_lower"] = {'$regex' : text.lower()+"$"}
-		elif textType == "co":
-			filterDict["text_lower"] = {'$regex' : text.lower()}
-		elif textType == "em":
-			filterDict["text_lower"] = text.lower()
+		if text_match_type == "sw":
+			basic_filters_dictionary["text_lower"] = {'$regex' : "^"+text.lower()}
+		elif text_match_type == "ew":
+			basic_filters_dictionary["text_lower"] = {'$regex' : text.lower()+"$"}
+		elif text_match_type == "co":
+			basic_filters_dictionary["text_lower"] = {'$regex' : text.lower()}
+		elif text_match_type == "em":
+			basic_filters_dictionary["text_lower"] = text.lower()
 
-	if rtcount != None:
-		rtcountType = rtcount[:2].lower()
-		rtcount = rtcount[2:]
-		print rtcount, rtcountType
-		if rtcount.isdigit():
+	if retweet_count != None:
+		rtcountType = retweet_count[:2].lower()
+		retweet_count = retweet_count[2:]
+
+		if retweet_count.isdigit():
 			if rtcountType == "gt":
-				filterDict["retweet_count"] = {'$gt':int(rtcount)}
+				basic_filters_dictionary["retweet_count"] = {'$gt':int(retweet_count)}
 			elif rtcountType == "lt":
-				filterDict["retweet_count"] = {'$lt':int(rtcount)}
+				basic_filters_dictionary["retweet_count"] = {'$lt':int(retweet_count)}
 			elif rtcountType == "eq":
-				filterDict["retweet_count"] = {'$eq':int(rtcount)}
+				basic_filters_dictionary["retweet_count"] = {'$eq':int(retweet_count)}
 			elif rtcountType == "le":
-				filterDict["retweet_count"] = {'$lte':int(rtcount)}
+				basic_filters_dictionary["retweet_count"] = {'$lte':int(retweet_count)}
 			elif rtcountType == "ge":
-				filterDict["retweet_count"] = {'$gte':int(rtcount)}
+				basic_filters_dictionary["retweet_count"] = {'$gte':int(retweet_count)}
 
-	if favcount != None:
-		favcountType = favcount[:2].lower()
-		favcount = favcount[2:]
-		if favcount.isdigit():
+	if favourite_count != None:
+		favcountType = favourite_count[:2].lower()
+		favourite_count = favourite_count[2:]
+		if favourite_count.isdigit():
 			if favcountType == "gt":
-				filterDict["favorite_count"] = {'$gt':int(favcount)}
+				basic_filters_dictionary["favorite_count"] = {'$gt':int(favourite_count)}
 			elif favcountType == "lt":
-				filterDict["favorite_count"] = {'$lt':int(favcount)}
+				basic_filters_dictionary["favorite_count"] = {'$lt':int(favourite_count)}
 			elif favcountType == "eq":
-				filterDict["favorite_count"] = {'$eq':int(favcount)}
+				basic_filters_dictionary["favorite_count"] = {'$eq':int(favourite_count)}
 			elif favcountType == "le":
-				filterDict["favorite_count"] = {'$lte':int(favcount)}
+				basic_filters_dictionary["favorite_count"] = {'$lte':int(favourite_count)}
 			elif favcountType == "ge":
-				filterDict["favorite_count"] = {'$gte':int(favcount)}
+				basic_filters_dictionary["favorite_count"] = {'$gte':int(favourite_count)}
 
 	users_map = {
 					i["id"]: i for i in list(users.find(None,{
@@ -318,19 +323,19 @@ def filterData(name, text, rtcount, favcount, datestart, dateend,
 											)
 				}
 
-	tweets = list(tweets.find(filterDict, {'hashtags_lower':0, 'text_lower':0, 'keyword':0, 
-		'user_mentions_lower':0, '_id':0}).sort([(sort, sortType)]))
+	tweets = list(tweets.find(basic_filters_dictionary, {'hashtags_lower':0, 'text_lower':0, 'keyword':0, 
+		'user_mentions_lower':0, '_id':0}).sort([(primary_sort, primary_sort_type)]))
 
 	result = [dict(tweet, user=users_map[tweet["user"]]) for tweet in tweets]
 
-	if sort2 != None:
-		if sort2 == "user":
+	if secondary_sort != None:
+		if secondary_sort == "user":
 			result = sorted(result, key=lambda k: k['user']['name'])
-		elif sort2 == "screen_name":
+		elif secondary_sort == "screen_name":
 			result = sorted(result, key=lambda k: k['user']['screen_name'])
-		elif sort2 == "followers_count":
+		elif secondary_sort == "followers_count":
 			result = sorted(result, key=lambda k: k['user']['followers_count'])
-		if sortType2 == "dsc":
+		if secondary_sort_type == "dsc":
 			result = result[::-1]
 
 	return result
