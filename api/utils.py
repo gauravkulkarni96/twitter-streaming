@@ -6,6 +6,7 @@ from tweepy.streaming import StreamListener
 #MongoDB
 from flask_pymongo import PyMongo
 import pymongo
+from IPython import embed
 
 mongo = PyMongo(app)
 
@@ -106,6 +107,7 @@ class StdOutListener(StreamListener):
 def filterData(name, text, rtcount, favcount, datestart, dateend, 
 				language, mention, sortPar,hashtag, ufollowcount, 
 				typeTw, location, keyword):
+
 	users = mongo.db.users
 	tweets = mongo.db.tweets
 
@@ -303,16 +305,23 @@ def filterData(name, text, rtcount, favcount, datestart, dateend,
 			elif favcountType == "ge":
 				filterDict["favorite_count"] = {'$gte':int(favcount)}
 
-	result = []
-	for i in tweets.find(filterDict, {'hashtags_lower':0, 'text_lower':0, 'keyword':0, 
-		'user_mentions_lower':0}).sort([(sort, sortType)]):
+	users_map = {
+					i["id"]: i for i in list(users.find(None,{
+																'name':1,
+																'screen_name':1,
+																'followers_count':1, 
+																'location':1, 
+																'id':1, 
+																'_id':0
+															}
+														)
+											)
+				}
 
-		i['user'] = users.find_one(
-				{'id':i['user']},
-				{'name':1,'screen_name':1,'followers_count':1, 'location':1, 'id':1}
-			)
+	tweets = list(tweets.find(filterDict, {'hashtags_lower':0, 'text_lower':0, 'keyword':0, 
+		'user_mentions_lower':0, '_id':0}).sort([(sort, sortType)]))
 
-		result.append(i)
+	result = [dict(tweet, user=users_map[tweet["user"]]) for tweet in tweets]
 
 	if sort2 != None:
 		if sort2 == "user":
